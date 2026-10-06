@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04080a">
+<title>Escuadrón Forense · Ciclo de Diagnóstico Avanzado</title>
+<style>
+/* ============================================================
+   VARIABLES Y RESET
+   ============================================================ */
+:root{
+  --bg:#04080a;
+  --panel:#0a1519;
+  --panel2:#0c1c21;
+  --line:#123039;
+  --line2:#17414a;
+  --neon:#00ff9c;
+  --cyan:#31d0ff;
+  --amber:#ffb020;
+  --red:#ff3b4e;
+  --txt:#d6f5ea;
+  --dim:#6a9c92;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{
+  background-color:var(--bg);
+  background-image:
+    radial-gradient(ellipse at 50% -10%, #0d2b2a 0%, transparent 60%),
+    radial-gradient(ellipse at 100% 100%, #0a1e2b 0%, transparent 55%);
+  background-attachment:fixed;
+  color:var(--txt);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+  font-size:15px;
+  line-height:1.5;
+  min-height:100vh;
+  padding-bottom:70px;
+  overflow-x:hidden;
+}
+/* Overlay de líneas de escaneo tipo CRT */
+.scan{
+  position:fixed;inset:0;pointer-events:none;z-index:9998;
+  background:repeating-linear-gradient(to bottom, rgba(0,255,156,.03) 0 1px, transparent 1px 3px);
+  opacity:.75;
+}
+
+/* ============================================================
+   HUD SUPERIOR
+   ============================================================ */
+.hud{
+  position:sticky;top:0;z-index:50;
+  display:flex;justify-content:space-between;align-items:center;
+  gap:10px;
+  padding:10px 14px;
+  background:rgba(4,8,10,.94);
+  border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:1.2px;
+}
+.hud-left{display:flex;align-items:center;gap:8px;min-width:0}
+.dot{
+  width:8px;height:8px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 8px var(--neon);flex:0 0 auto;
+  animation:pulse 1.6s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.hud-title{color:var(--neon);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-right{color:var(--cyan);font-weight:700;white-space:nowrap}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.wrap{max-width:760px;margin:0 auto;padding:16px 14px 30px}
+.foot{
+  position:fixed;bottom:0;left:0;right:0;z-index:40;
+  text-align:center;font-size:10px;letter-spacing:1px;color:#3d6b64;
+  padding:8px;background:rgba(4,8,10,.92);border-top:1px solid var(--line);
+}
+
+/* ============================================================
+   TARJETAS / PANELES
+   ============================================================ */
+.card{
+  position:relative;
+  background:linear-gradient(180deg,#0a1519,#081114);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:16px 14px;
+  margin-bottom:14px;
+}
+.card::before{
+  content:'';position:absolute;top:-1px;left:14px;width:44px;height:2px;
+  background:var(--neon);box-shadow:0 0 8px var(--neon);
+}
+.card.amber::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.card.red::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.card.cyan::before{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+
+h1{font-size:20px;line-height:1.25;letter-spacing:.5px;margin-bottom:8px;color:#eafff7}
+h2{font-size:15px;letter-spacing:1.4px;color:var(--neon);margin-bottom:10px;text-transform:uppercase}
+h3{font-size:13px;letter-spacing:1px;color:var(--cyan);margin:14px 0 8px;text-transform:uppercase}
+p{margin-bottom:10px;color:#b9ded3}
+.small{font-size:12px;color:var(--dim);line-height:1.55}
+.tag{
+  display:inline-block;font-size:10px;letter-spacing:1.4px;
+  border:1px solid var(--line2);border-radius:20px;
+  padding:3px 9px;color:var(--cyan);margin-bottom:10px;
+}
+.hr{height:1px;background:var(--line);margin:14px 0;border:0}
+
+/* ============================================================
+   BOTONES
+   ============================================================ */
+.btn{
+  display:block;width:100%;padding:15px 14px;
+  border-radius:10px;border:1px solid var(--neon);
+  background:linear-gradient(180deg,rgba(0,255,156,.16),rgba(0,255,156,.04));
+  color:var(--neon);font-family:inherit;font-size:13px;font-weight:700;
+  letter-spacing:1.6px;text-transform:uppercase;
+  cursor:pointer;touch-action:manipulation;
+  transition:transform .12s, background .2s;
+}
+.btn:active{transform:scale(.98);background:rgba(0,255,156,.22)}
+.btn:disabled{
+  opacity:.32;border-color:#2b4a4a;color:#4d7a72;
+  background:#0a1519;cursor:not-allowed;transform:none;
+}
+.btn.ghost{
+  border-color:var(--line2);color:var(--dim);background:transparent;
+}
+.btn.ghost:active{background:#0e2027}
+.btn.danger{border-color:var(--red);color:#ff8b96;background:linear-gradient(180deg,rgba(255,59,78,.14),transparent)}
+
+/* ============================================================
+   PREGUNTAS
+   ============================================================ */
+.qcard{
+  background:#08111400;
+  border:1px solid var(--line);
+  border-left:2px solid var(--line2);
+  border-radius:10px;
+  padding:13px 12px;
+  margin-bottom:14px;
+}
+.qhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.qtag{font-size:10px;letter-spacing:1.3px;color:var(--cyan)}
+.qpts{font-size:10px;letter-spacing:1px;color:var(--amber);white-space:nowrap}
+.qprompt{font-size:14px;color:#dff7ee;margin-bottom:12px;line-height:1.5}
+
+.opt{
+  display:block;width:100%;text-align:left;
+  padding:12px 13px;margin-bottom:8px;
+  border-radius:8px;border:1px solid var(--line2);
+  background:var(--panel2);color:var(--txt);
+  font-family:inherit;font-size:13.5px;line-height:1.45;
+  cursor:pointer;touch-action:manipulation;
+  transition:transform .1s, background .15s, border-color .15s;
+}
+.opt b{color:var(--neon);margin-right:6px}
+.opt:active{transform:scale(.985);background:#123039}
+.opt:disabled{cursor:default}
+.opt.ok{
+  border-color:var(--neon);background:rgba(0,255,156,.13);color:#a6ffdd;
+}
+.opt.ok b{color:var(--neon)}
+.opt.bad{
+  border-color:var(--red);background:rgba(255,59,78,.09);
+  color:#ff9aa5;opacity:.6;text-decoration:line-through;
+}
+.opt.bad b{color:var(--red)}
+
+.qfoot{margin-top:6px}
+.hintbtn{
+  background:transparent;border:1px dashed #2f5d63;border-radius:8px;
+  color:var(--amber);font-family:inherit;font-size:11px;letter-spacing:1px;
+  padding:9px 12px;width:100%;cursor:pointer;touch-action:manipulation;
+}
+.hintbtn:disabled{opacity:.45;cursor:default}
+
+.qfb{
+  display:none;margin-top:10px;padding:11px 12px;border-radius:8px;
+  font-size:12.5px;line-height:1.55;
+}
+.qfb.show{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.qfb.ok{background:rgba(0,255,156,.09);border:1px solid rgba(0,255,156,.35);color:#a6ffdd}
+.qfb.bad{background:rgba(255,59,78,.08);border:1px solid rgba(255,59,78,.35);color:#ffb3bb}
+.qfb.hint{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.35);color:#ffd98a}
+.qfb b{letter-spacing:.8px}
+
+/* ============================================================
+   SLIDER (calibración 3σ)
+   ============================================================ */
+.sliderwrap{padding:6px 2px 2px}
+.sliderwrap input[type=range]{
+  width:100%;height:34px;background:transparent;
+  accent-color:var(--neon);cursor:pointer;
+}
+.sliderval{
+  text-align:center;font-size:13px;color:var(--dim);margin-bottom:10px;
+  letter-spacing:1px;
+}
+.sliderval b{color:var(--neon);font-size:19px}
+
+/* ============================================================
+   GRÁFICA SVG
+   ============================================================ */
+.chartbox{
+  background:#050d10;border:1px solid var(--line);border-radius:10px;
+  padding:8px 4px 4px;margin-bottom:12px;
+}
+.chartbox svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:10.5px;color:var(--dim);padding:4px 0 8px;letter-spacing:.8px}
+.legend span{display:flex;align-items:center;gap:5px}
+.swatch{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+/* ============================================================
+   TIMELINE DE LOGS
+   ============================================================ */
+.timeline{position:relative;padding-left:20px;margin-bottom:8px}
+.timeline::before{
+  content:'';position:absolute;left:6px;top:6px;bottom:6px;width:2px;
+  background:linear-gradient(180deg,var(--amber),var(--red),#7a1420);
+}
+.tl-item{position:relative;margin-bottom:12px}
+.tl-item::before{
+  content:'';position:absolute;left:-19px;top:6px;width:10px;height:10px;
+  border-radius:50%;background:var(--bg);border:2px solid var(--cyan);
+}
+.tl-item.a::before{border-color:var(--amber);box-shadow:0 0 8px var(--amber)}
+.tl-item.b::before{border-color:var(--red);box-shadow:0 0 8px var(--red)}
+.tl-item.c::before{border-color:#ff6b3d;box-shadow:0 0 8px #ff6b3d}
+.tl-time{font-size:11px;color:var(--amber);letter-spacing:1.2px}
+.tl-body{
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  padding:9px 11px;margin-top:4px;font-size:12.5px;color:#c8e8de;
+}
+.tl-body b{color:var(--cyan);font-weight:700}
+
+/* ============================================================
+   ESPINA DE PESCADO
+   ============================================================ */
+.fishbone{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.bone{
+  background:var(--panel2);border:1px solid var(--line2);
+  border-radius:8px;padding:9px 10px;
+}
+.btag{display:block;font-size:10px;letter-spacing:1.2px;color:var(--amber);margin-bottom:4px}
+.btxt{font-size:11.5px;color:#a9cec5;line-height:1.4}
+.spine{
+  text-align:center;font-size:11.5px;letter-spacing:1.2px;
+  color:#ff8b96;border:1px dashed rgba(255,59,78,.5);
+  border-radius:8px;padding:10px;background:rgba(255,59,78,.05);
+}
+
+/* ============================================================
+   PROGRESO DE ESTACIÓN
+   ============================================================ */
+.navfoot{margin-top:18px}
+.prog{
+  text-align:center;font-size:11px;letter-spacing:1.4px;
+  color:var(--dim);margin-bottom:10px;
+}
+.bar{
+  height:6px;border-radius:4px;background:#0d2027;overflow:hidden;margin-bottom:14px;
+  border:1px solid var(--line);
+}
+.bar>i{
+  display:block;height:100%;width:0%;
+  background:linear-gradient(90deg,var(--cyan),var(--neon));
+  transition:width .4s ease;
+}
+
+/* ============================================================
+   RESULTADOS
+   ============================================================ */
+.scorebig{
+  text-align:center;padding:18px 10px 10px;
+}
+.scorebig .num{
+  font-size:52px;line-height:1;color:var(--neon);
+  text-shadow:0 0 22px rgba(0,255,156,.5);font-weight:700;
+}
+.scorebig .den{font-size:14px;color:var(--dim);letter-spacing:2px;margin-top:6px}
+.rank{
+  display:inline-block;margin-top:12px;font-size:11.5px;letter-spacing:1.6px;
+  padding:7px 14px;border-radius:20px;border:1px solid var(--neon);
+  color:var(--neon);background:rgba(0,255,156,.08);
+}
+.rank.warn{border-color:var(--amber);color:var(--amber);background:rgba(255,176,32,.08)}
+.rank.bad{border-color:var(--red);color:#ff8b96;background:rgba(255,59,78,.08)}
+
+.strow{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px}
+.strow .lbl{flex:0 0 92px;color:var(--dim);letter-spacing:.8px}
+.strow .bar{flex:1;margin:0}
+.strow .val{flex:0 0 58px;text-align:right;color:var(--cyan);font-size:11.5px}
+
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.metric{
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  padding:10px;text-align:center;
+}
+.metric .mv{font-size:20px;color:var(--amber);font-weight:700}
+.metric .ml{font-size:10px;color:var(--dim);letter-spacing:1px;margin-top:3px}
+
+/* ============================================================
+   FORMULARIO
+   ============================================================ */
+label{display:block;font-size:11px;letter-spacing:1.2px;color:var(--cyan);margin:14px 0 6px}
+input[type=text],textarea{
+  width:100%;background:#050d10;border:1px solid var(--line2);
+  border-radius:8px;color:var(--txt);font-family:inherit;font-size:14px;
+  padding:12px;outline:none;transition:border-color .2s;
+}
+input[type=text]:focus,textarea:focus{border-color:var(--neon);box-shadow:0 0 0 2px rgba(0,255,156,.12)}
+textarea{resize:vertical;min-height:110px;line-height:1.55}
+.req{color:var(--red)}
+
+.note{
+  font-size:11px;color:var(--dim);line-height:1.55;
+  border-left:2px solid var(--line2);padding-left:10px;margin-top:14px;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:360px){
+  body{font-size:14px}
+  h1{font-size:17px}
+  .fishbone{grid-template-columns:1fr}
+  .scorebig .num{font-size:42px}
+}
+</style>
+</head>
+<body>
+<div class="scan"></div>
+
+<!-- HUD FIJO -->
+<header class="hud">
+  <div class="hud-left">
+    <span class="dot"></span>
+    <span class="hud-title" id="hudTitle">ESCUADRÓN FORENSE</span>
+  </div>
+  <div class="hud-right" id="hudScore">0 / 100</div>
+</header>
+
+<!-- CONTENEDOR PRINCIPAL DE PANTALLAS -->
+<main id="screen" class="wrap"></main>
+
+<footer class="foot">HARDWARE IV · 6° AÑO · SIMULADOR DE DIAGNÓSTICO SISTEMÁTICO</footer>
+
+<script>
+"use strict";
+
+/* ================================================================
+   1. BANCO DE PREGUNTAS
+   Cada pregunta: { tag, pts, prompt, options:[{t, ok, fb}], hint }
+   ================================================================ */
+const QuestionBank = {
+
+  /* ---------------- ESTACIÓN 1 · TELEMETRÍA ---------------- */
+  s1q1:{
+    tag:"S1 · TELEMETRÍA",
+    pts:8,
+    prompt:"Telemetría bajo carga (renderizado 3D). El reloj de la CPU cae de 4.2 GHz a 2.8 GHz mientras la temperatura del VRM trepa a 105 °C. ¿Qué fenómeno estás observando?",
+    options:[
+      {t:"Throttling térmico: el sistema reduce frecuencias de forma dinámica para protegerse.",
+       ok:true, fb:"La caída dinámica de reloj acompañada de temperatura en ascenso es la firma clásica del throttling térmico. El sistema no falla: se defiende."},
+      {t:"Infección por malware que mina criptomonedas en segundo plano.",
+       ok:false, fb:"El malware no explica la correlación medida entre temperatura del VRM y caída de frecuencia."},
+      {t:"Degradación del disco NVMe al superar los 70 °C.",
+       ok:false, fb:"El NVMe tiene su propio umbral (>70 °C), pero no gobierna el reloj de la CPU."},
+      {t:"Fallo de la fuente ATX por ripple superior a 120 mV.",
+       ok:false, fb:"El ripple se verifica con osciloscopio sobre los rieles. No explica la curva térmica observada."}
+    ],
+    hint:"Preguntate: ¿qué relación directa existe entre 'temperatura que sube' y 'frecuencia que baja'? El reposo miente; bajo carga es donde se revela."
+  },
+
+  s1q2:{
+    tag:"S1 · REGLA 3σ",
+    pts:8,
+    prompt:"Línea base histórica del VRM: μ = 65 °C, σ = 15 °C. La campaña de hoy registra 105 °C bajo la misma carga. ¿En qué zona de la Regla 3σ cae esa lectura?",
+    options:[
+      {t:"Zona normal (μ ± 1σ, hasta 80 °C). Solo corresponde registrar.",
+       ok:false, fb:"80 °C equivale a μ + 1σ. La lectura de 105 °C la supera con holgura."},
+      {t:"Zona entre 2σ y 3σ (95 °C – 110 °C). Nivel crítico: planificar intervención.",
+       ok:true, fb:"Exacto. 105 °C = μ + 2,6σ. Superó el nivel crítico (2σ) pero todavía no cruzó la emergencia (3σ = 110 °C)."},
+      {t:"Zona por encima de 3σ (> 110 °C). Emergencia: apagar el equipo.",
+       ok:false, fb:"Todavía no cruzó el umbral de emergencia. Está en zona crítica, no en emergencia."},
+      {t:"Es indistinto: cualquier lectura tomada bajo carga se considera normal.",
+       ok:false, fb:"Al contrario. La telemetría bajo estrés es precisamente donde se revelan las anomalías reales."}
+    ],
+    hint:"Calculá: μ = 65, σ = 15. Entonces 1σ = 80 °C, 2σ = 95 °C y 3σ = 110 °C. Ubicá 105 °C en esa escala."
+  },
+
+  s1q3:{
+    tag:"S1 · UMBRALES",
+    pts:6,
+    prompt:"Durante la prueba de estrés el VRM sostiene lecturas superiores a 110 °C (3σ). ¿Cuál es la acción metodológicamente correcta?",
+    options:[
+      {t:"Apagar el equipo de inmediato y registrar el evento como emergencia 3σ.",
+       ok:true, fb:"Correcto. El nivel 3σ es emergencia: se apaga, se registra y se documenta. Nunca se 'espera a ver qué pasa'."},
+      {t:"Continuar la prueba para comprobar si la temperatura se estabiliza sola.",
+       ok:false, fb:"Sostener >110 °C degrada permanentemente el VRM y los condensadores. No es una prueba, es una destrucción."},
+      {t:"Reiniciar el sistema operativo y volver a intentar.",
+       ok:false, fb:"El reinicio lógico no modifica la causa física: el problema es térmico, no del SO."},
+      {t:"Sustituir la fuente ATX al azar para descartar.",
+       ok:false, fb:"Sustitución aleatoria sin telemetría previa: exactamente lo que el marco metodológico prohíbe."}
+    ],
+    hint:"Recordá los niveles: 1σ registrar, 2σ planificar, 3σ emergencia. La emergencia tiene una única acción posible."
+  },
+
+  s1q4:{
+    tag:"S1 · CALIBRACIÓN 3σ",
+    pts:8,
+    type:"slider",
+    prompt:"Calibrá el umbral de apagado automático del sistema en el valor exacto de 3σ. Datos de la línea base: μ = 65 °C, σ = 15 °C.",
+    hint:"3σ se calcula como μ + 3·σ. Reemplazá los valores y deslizá el control hasta el resultado."
+  },
+
+  /* ---------------- ESTACIÓN 2 · AUDITORÍA DE LOGS ---------------- */
+  s2q1:{
+    tag:"S2 · 14:02:11",
+    pts:4,
+    prompt:"Evento 14:02:11 · Origen: Application · 'Software rendering crash'. ¿Qué rol cumple este evento dentro de la cadena de falla?",
+    options:[
+      {t:"SÍNTOMA — manifestación visible del problema.",
+       ok:true, fb:"Es lo primero que ve el usuario, pero no el origen. El síntoma se manifiesta; la causa se deduce."},
+      {t:"CAUSA RAÍZ — origen físico del fallo.",
+       ok:false, fb:"Un crash de renderizado por software es un efecto, no un origen físico."},
+      {t:"CONSECUENCIA — resultado final del colapso.",
+       ok:false, fb:"Ocurre primero en la línea temporal: no puede ser la consecuencia final."}
+    ],
+    hint:"Ordená los eventos en el tiempo. Lo que aparece primero suele ser el síntoma visible; lo que aparece en el medio es el origen."
+  },
+
+  s2q2:{
+    tag:"S2 · 14:02:15",
+    pts:4,
+    prompt:"Evento 14:02:15 · Origen: System · WHEA-Logger, Event ID 18 (error de hardware físico corregido/detectado por el procesador). ¿Qué rol cumple?",
+    options:[
+      {t:"SÍNTOMA — manifestación visible del problema.",
+       ok:false, fb:"El síntoma visible fue el crash de la aplicación, tres segundos antes."},
+      {t:"CAUSA RAÍZ — origen físico del fallo.",
+       ok:true, fb:"Correcto. WHEA-Logger reporta el error de hardware físico: ahí nace la cadena. Es la raíz, no la manifestación."},
+      {t:"CONSECUENCIA — resultado final del colapso.",
+       ok:false, fb:"La consecuencia es el apagado inesperado, registrado un segundo después."}
+    ],
+    hint:"WHEA = Windows Hardware Error Architecture. Si el log habla de hardware físico, ¿es el origen o el efecto?"
+  },
+
+  s2q3:{
+    tag:"S2 · 14:02:16",
+    pts:4,
+    prompt:"Evento 14:02:16 · Origen: System · Kernel-Power, Event ID 41 (apagado inesperado sin cierre limpio). ¿Qué rol cumple?",
+    options:[
+      {t:"SÍNTOMA — manifestación visible del problema.",
+       ok:false, fb:"El síntoma visible fue el crash de la aplicación al inicio de la cadena."},
+      {t:"CAUSA RAÍZ — origen físico del fallo.",
+       ok:false, fb:"El Event ID 41 es un registro del apagado, no la causa del apagado. Es el efecto documentado."},
+      {t:"CONSECUENCIA — resultado final del colapso.",
+       ok:true, fb:"Exacto. Kernel-Power ID 41 es la huella del colapso: registra que el sistema murió sin cierre limpio. Es consecuencia, no causa."}
+    ],
+    hint:"Preguntate: ¿el Event ID 41 provoca el apagado, o deja constancia de que el apagado ya ocurrió?"
+  },
+
+  s2q4:{
+    tag:"S2 · INTERPRETACIÓN",
+    pts:8,
+    prompt:"¿Qué describe exactamente el Event ID 18 de WHEA-Logger?",
+    options:[
+      {t:"Un error de hardware físico detectado o corregido por el procesador.",
+       ok:true, fb:"Correcto. WHEA documenta errores de hardware (CPU, bus, memoria) detectados a nivel de silicio, incluso los que el sistema logró corregir silenciosamente."},
+      {t:"Un apagado inesperado sin cierre limpio del sistema operativo.",
+       ok:false, fb:"Eso corresponde al Event ID 41 de Kernel-Power."},
+      {t:"Un fallo del controlador de video durante el renderizado.",
+       ok:false, fb:"Un fallo de controlador aparece en el origen Application o en el módulo del stack, no como WHEA de hardware físico."},
+      {t:"Una actualización fallida del sistema operativo.",
+       ok:false, fb:"Las actualizaciones fallidas se registran con otros orígenes y códigos, no bajo WHEA-Logger."}
+    ],
+    hint:"WHEA = Windows Hardware Error Architecture. La palabra clave del nombre te dice qué tipo de error documenta."
+  },
+
+  s2q5:{
+    tag:"S2 · EQUIVALENCIA LINUX",
+    pts:5,
+    prompt:"En un entorno Linux, ¿qué herramienta consultarías para leer el buffer de anillo del núcleo y detectar errores de hardware (MCE / EDAC)?",
+    options:[
+      {t:"dmesg",
+       ok:true, fb:"Correcto. dmesg expone el ring buffer del kernel: ahí aparecen los MCE (Machine Check Events) y los reportes EDAC de memoria."},
+      {t:"lsblk",
+       ok:false, fb:"lsblk lista dispositivos de bloque. No reporta errores de hardware del procesador."},
+      {t:"systemctl status",
+       ok:false, fb:"systemctl gestiona servicios. No es una fuente forense de errores de silicio."},
+      {t:"top",
+       ok:false, fb:"top muestra consumo de recursos en tiempo real, no el registro de errores del kernel."}
+    ],
+    hint:"El material lo llama 'el buffer de inicialización y hardware (Ring Buffer)'. Es el comando que muestra los mensajes del núcleo."
+  },
+
+  s2q6:{
+    tag:"S2 · MÉTODO FORENSE",
+    pts:5,
+    prompt:"¿Por qué la correlación temporal es clave en la auditoría de logs?",
+    options:[
+      {t:"Porque ordena los eventos en cadena y permite distinguir el origen del efecto.",
+       ok:true, fb:"Correcto. Los miles de eventos ocultan la cadena de fallas; filtrar e interconectar marcas de tiempo revela la verdad."},
+      {t:"Porque cuenta cuántos errores hubo en total durante la sesión.",
+       ok:false, fb:"El conteo total no aporta causalidad: mil errores derivados valen menos que un solo evento raíz bien ubicado."},
+      {t:"Porque indica qué programas tenía abiertos el usuario.",
+       ok:false, fb:"Eso es contexto, no causalidad."},
+      {t:"Porque reemplaza a la telemetría cuando no hay sensores disponibles.",
+       ok:false, fb:"Los pilares son complementarios, no sustitutos. Ninguno reemplaza a otro."}
+    ],
+    hint:"Pensá en el diagrama de la cadena: 14:02:11 → 14:02:15 → 14:02:16. ¿Qué te aporta ese orden?"
+  },
+
+  /* ---------------- ESTACIÓN 3 · LÓGICA E ISHIKAWA ---------------- */
+  s3q1:{
+    tag:"S3 · PRIMERA DECISIÓN",
+    pts:10,
+    prompt:"Un PC de diseño 3D se apaga súbitamente al renderizar, sin BSOD. El usuario pide formatear el disco porque cree que es un virus. ¿Cuál es tu primera acción?",
+    options:[
+      {t:"Entrevista forense: recopilar síntomas sin asumir el diagnóstico del usuario.",
+       ok:true, fb:"Correcto. Se recopilan síntomas antes de tocar nada. El diagnóstico del usuario es un dato, no una conclusión."},
+      {t:"Formatear el disco para descartar el virus de una vez.",
+       ok:false, fb:"Ensayo y error destructivo: borra la evidencia, consume horas y no corrige la causa raíz física."},
+      {t:"Cambiar la RAM al azar para ver si se soluciona.",
+       ok:false, fb:"Sustitución aleatoria de componentes: la práctica que el manifiesto prohíbe explícitamente."},
+      {t:"Instalar un antivirus más potente y volver a renderizar.",
+       ok:false, fb:"Sin BSOD ni logs de infección, la hipótesis viral no está sostenida por evidencia."}
+    ],
+    hint:"El manifiesto dice: 'Nunca sustituir al azar'. Y el protocolo de banco de trabajo empieza por un paso muy concreto."
+  },
+
+  s3q2:{
+    tag:"S3 · ESPINA DE PESCADO",
+    pts:10,
+    prompt:"Datos forenses: VRM a 105 °C, CPU con throttling dinámico activo, Event ID 41 registrado. ¿En qué rama de la Espina de Pescado ubicás la hipótesis prioritaria?",
+    options:[
+      {t:"MEDIO AMBIENTE / MÁQUINA — Sobrecalentamiento del VRM por flujo de aire deficiente o polvo en disipadores.",
+       ok:true, fb:"Correcto. La telemetría apunta a disipación térmica: es una falla del entorno/máquina, no del software ni del usuario."},
+      {t:"MATERIAL — GPU defectuosa o cable HDMI roto.",
+       ok:false, fb:"La GPU defectuosa no explica el throttling ni los 105 °C medidos en el VRM."},
+      {t:"MANO DE OBRA — Montaje con descarga electrostática (ESD).",
+       ok:false, fb:"Una descarga ESD produce fallos inmediatos y permanentes, no una degradación térmica progresiva bajo carga."},
+      {t:"MÉTODO — Instalación sin presionar el seguro PCIe.",
+       ok:false, fb:"Un seguro PCIe mal puesto daría ausencia de video o inestabilidad del bus, no una curva térmica ascendente."}
+    ],
+    hint:"La evidencia más fuerte es la temperatura. ¿Qué rama de la espina agrupa los problemas de disipación y entorno físico?"
+  },
+
+  s3q3:{
+    tag:"S3 · ACCIÓN INMEDIATA",
+    pts:10,
+    prompt:"Con la hipótesis prioritaria definida, ¿cuál es la acción inmediata correcta?",
+    options:[
+      {t:"Cancelar el formateo; mejorar el flujo de aire y revisar disipadores y pasta térmica del VRM.",
+       ok:true, fb:"Correcto. Se interviene sobre la causa raíz detectada por telemetría, no sobre la sospecha del usuario."},
+      {t:"Formatear el disco igual, para descartar el virus por completo.",
+       ok:false, fb:"Acción no relacionada con la causa raíz. Costo alto, valor diagnóstico nulo."},
+      {t:"Reemplazar la placa madre directamente.",
+       ok:false, fb:"Salto a la sustitución sin aislamiento previo: el VRM puede estar sano y solo mal ventilado."},
+      {t:"Entregar el equipo porque en reposo funciona perfectamente.",
+       ok:false, fb:"'El reposo miente'. El equipo falla bajo estrés operativo; entregarlo así es negligencia técnica."}
+    ],
+    hint:"Elegí la acción que ataca exactamente la causa raíz que ya identificaste, sin agregar variables nuevas."
+  },
+
+  s3q4:{
+    tag:"S3 · VERIFICACIÓN",
+    pts:10,
+    prompt:"¿Cómo validás la reparación de forma metodológica y reproducible?",
+    options:[
+      {t:"Nueva prueba de renderizado monitoreando que el VRM no supere 1σ respecto de la línea base.",
+       ok:true, fb:"Correcto. La verificación es una prueba estadística bajo estrés: se compara contra la línea base y se documenta."},
+      {t:"Encender el equipo y comprobar que no explote.",
+       ok:false, fb:"Observación no instrumentada: no genera datos, no es reproducible."},
+      {t:"Preguntarle al usuario si le parece que ahora anda bien.",
+       ok:false, fb:"La percepción del usuario no es una métrica. Se mide, no se opina."},
+      {t:"Correr un benchmark sin registrar temperaturas.",
+       ok:false, fb:"Un benchmark sin telemetría no verifica nada: solo repite la falla sin evidencia."}
+    ],
+    hint:"Volvé al ciclo de diagnóstico: Observación → Inferencia → Verificación → Documentación. ¿Qué significa verificar con datos?"
+  }
+};
+
+/* ================================================================
+   2. ESTADO GLOBAL
+   ================================================================ */
+const State = {
+  nombre:"",
+  curso:"",
+  sintesis:"",
+  q:{},                 // estado por pregunta
+  errors:0,             // respuestas incorrectas totales
+  hints:0,              // pistas solicitadas
+  decisions:[],         // bitácora cronológica
+  start:Date.now(),
+  stationDone:{s1:false, s2:false, s3:false}
+};
+
+/* Utilidades ---------------------------------------------------- */
+const $  = (sel, ctx=document) => ctx.querySelector(sel);
+const $$ = (sel, ctx=document) => Array.prototype.slice.call(ctx.querySelectorAll(sel));
+const fmt1 = n => (Math.round(n*10)/10).toFixed(1);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const nowStamp = () => new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+
+/* Estado por pregunta ------------------------------------------- */
+function qState(id){
+  if(!State.q[id]){
+    State.q[id] = { attempts:0, hint:false, done:false, earned:0, chosen:"—" };
+  }
+  return State.q[id];
+}
+
+/* Cálculo de puntajes ------------------------------------------- */
+function stationIds(prefix){
+  return Object.keys(QuestionBank).filter(k => k.indexOf(prefix) === 0);
+}
+function stationScore(prefix){
+  return stationIds(prefix).reduce((a,id) => a + qState(id).earned, 0);
+}
+function stationMax(prefix){
+  return stationIds(prefix).reduce((a,id) => a + QuestionBank[id].pts, 0);
+}
+function totalScore(){
+  return stationScore("s1") + stationScore("s2") + stationScore("s3");
+}
+function totalMax(){
+  return stationMax("s1") + stationMax("s2") + stationMax("s3");
+}
+
+/* HUD ------------------------------------------------------------ */
+function updateHUD(){
+  const t = totalScore(), m = totalMax();
+  $("#hudScore").textContent = fmt1(t) + " / " + m;
+}
+
+/* ================================================================
+   3. COMPONENTES DE RENDERIZADO
+   ================================================================ */
+
+/* --- Tarjeta de pregunta estándar ----------------------------- */
+function qCard(id){
+  const q  = QuestionBank[id];
+  const st = qState(id);
+  const letters = ["A","B","C","D","E","F"];
+
+  if(q.type === "slider"){
+    return `
+    <div class="qcard" id="card-${id}">
+      <div class="qhead">
+        <span class="qtag">${q.tag}</span>
+        <span class="qpts">${q.pts} pts</span>
+      </div>
+      <p class="qprompt">${q.prompt}</p>
+      <div class="sliderwrap">
+        <div class="sliderval">UMBRAL DE APAGADO: <b id="slv-${id}">100</b> °C</div>
+        <input type="range" min="90" max="130" step="1" value="100"
+               id="sl-${id}" aria-label="Umbral de apagado en grados Celsius">
+        <button class="opt" data-act="slider-check" data-qid="${id}"
+                style="text-align:center;margin-top:6px;">
+          <b>▸</b> VALIDAR UMBRAL CALIBRADO
+        </button>
+      </div>
+      ${q.hint ? `<div class="qfoot"><button class="hintbtn" data-act="hint" data-qid="${id}">▸ SOLICITAR PISTA (−20%)</button></div>` : ""}
+      <div class="qfb" id="fb-${id}"></div>
+    </div>`;
+  }
+
+  const opts = q.options.map((o,i) =>
+    `<button class="opt" data-act="answer" data-qid="${id}" data-idx="${i}">
+       <b>${letters[i]}</b> ${o.t}
+     </button>`).join("");
+
+  return `
+  <div class="qcard" id="card-${id}">
+    <div class="qhead">
+      <span class="qtag">${q.tag}</span>
+      <span class="qpts">${q.pts} pts</span>
+    </div>
+    <p class="qprompt">${q.prompt}</p>
+    <div class="qopts">${opts}</div>
+    ${q.hint ? `<div class="qfoot"><button class="hintbtn" data-act="hint" data-qid="${id}">▸ SOLICITAR PISTA (−20%)</button></div>` : ""}
+    <div class="qfb" id="fb-${id}"></div>
+  </div>`;
+}
+
+/* --- Pie de navegación de estación ---------------------------- */
+function navFoot(prefix, nextLabel, nextAction){
+  return `
+  <div class="navfoot">
+    <div class="prog" id="prog-${prefix}">0 / 0 respondidas</div>
+    <button class="btn" id="next-${prefix}" data-act="nav" data-nav="${nextAction}" disabled>
+      ${nextLabel}
+    </button>
+  </div>`;
+}
+
+/* --- Gráfica SVG de telemetría -------------------------------- */
+function telemetryChart(){
+  const W = 340, H = 200;
+  // Escalas
+  const X = t => 32 + t * 5;             // 0..60 s  →  32..332 px
+  const Y = T => 180 - (T - 40) * 2;     // 40..120°C → 180..20 px
+
+  const vrm = [[0,45],[5,52],[10,60],[15,68],[20,75],[25,82],[30,88],
+               [35,94],[40,100],[45,105],[50,105],[55,104],[60,103]];
+  const cpu = [[0,40],[5,48],[10,56],[15,64],[20,72],[25,79],[30,85],
+               [35,90],[40,94],[45,92],[50,89],[55,88],[60,87]];
+
+  const poly = data => data.map((p,i) =>
+    (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)
+  ).join(" ");
+
+  // Bandas de la regla 3σ (μ=65, σ=15)
+  const bands = [
+    {y1:65, y2:80,  c:"rgba(0,255,156,.07)", l:"1σ"},
+    {y1:80, y2:95,  c:"rgba(255,176,32,.09)", l:"2σ"},
+    {y1:95, y2:110, c:"rgba(255,107,61,.11)", l:"2σ–3σ"},
+    {y1:110,y2:120, c:"rgba(255,59,78,.16)", l:"3σ"}
+  ].map(b =>
+    `<rect x="32" y="${Y(b.y2)}" width="300" height="${Y(b.y1)-Y(b.y2)}" fill="${b.c}"/>`
+  ).join("");
+
+  // Líneas guía
+  const guides = [80,95,110].map(T =>
+    `<line x1="32" y1="${Y(T)}" x2="332" y2="${Y(T)}"
+       stroke="${T===110?'#ff3b4e':(T===95?'#ff6b3d':'#ffb020')}"
+       stroke-width="0.8" stroke-dasharray="3 3" opacity="0.75"/>`
+  ).join("");
+
+  // Etiquetas del eje Y
+  const yLabels = [40,65,80,95,110,120].map(T =>
+    `<text x="28" y="${Y(T)+3}" fill="#4f7d75" font-size="7.5"
+       text-anchor="end" font-family="monospace">${T}</text>`
+  ).join("");
+
+  // Etiquetas del eje X
+  const xLabels = [0,15,30,45,60].map(t =>
+    `<text x="${X(t)}" y="193" fill="#4f7d75" font-size="7.5"
+       text-anchor="middle" font-family="monospace">${t}s</text>`
+  ).join("");
+
+  return `
+  <div class="chartbox">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
+         aria-label="Telemetría de VRM y CPU bajo carga durante 60 segundos">
+      ${bands}
+      ${guides}
+      <line x1="32" y1="20" x2="32" y2="180" stroke="#1d4a52" stroke-width="1"/>
+      <line x1="32" y1="180" x2="332" y2="180" stroke="#1d4a52" stroke-width="1"/>
+      ${yLabels}
+      ${xLabels}
+      <path d="${poly(vrm)}" fill="none" stroke="#ff3b4e" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="${poly(cpu)}" fill="none" stroke="#31d0ff" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${X(45)}" cy="${Y(105)}" r="3.5" fill="#ff3b4e"/>
+      <text x="${X(45)-4}" y="${Y(105)-8}" fill="#ff8b96" font-size="8"
+            text-anchor="end" font-family="monospace">VRM 105°C</text>
+      <circle cx="${X(45)}" cy="${Y(92)}" r="3.5" fill="#31d0ff"/>
+      <text x="${X(45)-4}" y="${Y(92)+14}" fill="#7fdcff" font-size="8"
+            text-anchor="end" font-family="monospace">CPU 92°C</text>
+    </svg>
+    <div class="legend">
+      <span><i class="swatch" style="background:#ff3b4e"></i>VRM</span>
+      <span><i class="swatch" style="background:#31d0ff"></i>CPU</span>
+      <span><i class="swatch" style="background:#ffb020"></i>1σ = 80 °C</span>
+      <span><i class="swatch" style="background:#ff6b3d"></i>2σ = 95 °C</span>
+      <span><i class="swatch" style="background:#ff3b4e"></i>3σ = 110 °C</span>
+    </div>
+  </div>`;
+}
+
+/* ================================================================
+   4. PANTALLAS
+   ================================================================ */
+
+/* --- PORTADA --------------------------------------------------- */
+function goIntro(){
+  $("#hudTitle").textContent = "ESCUADRÓN FORENSE";
+  $("#screen").innerHTML = `
+    <div class="card">
+      <span class="tag">HARDWARE IV · 6° AÑO</span>
+      <h1>ESCUADRÓN FORENSE</h1>
+      <p class="small" style="letter-spacing:1.2px;color:var(--neon)">
+        EL CICLO DE DIAGNÓSTICO AVANZADO
+      </p>
+      <hr class="hr">
+      <p>Bienvenido, técnico. Vas a operar sobre tres estaciones de análisis.
+      El objetivo no es adivinar: es <b style="color:var(--neon)">reducir sistemáticamente
+      las variables hasta que la verdad sea evidente e innegable</b>.</p>
+      <p class="small">El sistema penaliza el ensayo y error. Cada intento fallido resta
+      puntaje; cada pista solicitada cuesta un 20 %. Deducí antes de tocar.</p>
+    </div>
+
+    <div class="card cyan">
+      <h2>▚ Las tres estaciones</h2>
+      <p><b style="color:var(--cyan)">ESTACIÓN 1 — TELEMETRÍA.</b>
+      Constantes vitales bajo carga y Regla 3σ. El reposo miente.</p>
+      <p><b style="color:var(--cyan)">ESTACIÓN 2 — AUDITORÍA DE LOGS.</b>
+      Correlación temporal en Windows Event Viewer y equivalencias en Linux.</p>
+      <p><b style="color:var(--cyan)">ESTACIÓN 3 — LÓGICA.</b>
+      Espina de pescado, árboles de decisión y aislamiento de causa raíz.</p>
+    </div>
+
+    <div class="card amber">
+      <h2>▚ Reglas de la simulación</h2>
+      <p class="small">› 12 preguntas · 100 puntos · nota sobre 10.<br>
+      › 1° intento correcto = 100 % del puntaje · 2° = 60 % · 3° o más = 30 %.<br>
+      › Pista solicitada = −20 % sobre esa pregunta.<br>
+      › Al finalizar se genera un informe <b>.doc</b> descargable para tu carpeta.</p>
+    </div>
+
+    <button class="btn" data-act="go" data-nav="s1">▶ INICIAR DIAGNÓSTICO</button>
+  `;
+  updateHUD();
+}
+
+/* --- ESTACIÓN 1 ------------------------------------------------ */
+function goS1(){
+  $("#hudTitle").textContent = "ESTACIÓN 1 · TELEMETRÍA";
+  $("#screen").innerHTML = `
+    <div class="card red">
+      <span class="tag">PILAR 2 · ANÁLISIS ESTADÍSTICO</span>
+      <h2>Estación 1 · Telemetría</h2>
+      <p class="small">Constantes vitales del hardware bajo estrés operativo.
+      Línea base del VRM: <b style="color:var(--neon)">μ = 65 °C · σ = 15 °C</b>.</p>
+    </div>
+
+    <div class="card">
+      <h3>▸ Captura de telemetría · renderizado 3D (60 s)</h3>
+      ${telemetryChart()}
+      <p class="small">El sistema registró una caída de frecuencia de <b>4.2 GHz → 2.8 GHz</b>
+      coincidente con la rampa térmica del VRM.</p>
+    </div>
+
+    ${qCard("s1q1")}
+    ${qCard("s1q2")}
+    ${qCard("s1q3")}
+    ${qCard("s1q4")}
+
+    ${navFoot("s1","IR A ESTACIÓN 2 →","s2")}
+  `;
+  attachSlider("s1q4");
+  updateProgress("s1");
+  updateHUD();
+}
+
+/* --- ESTACIÓN 2 ------------------------------------------------ */
+function goS2(){
+  $("#hudTitle").textContent = "ESTACIÓN 2 · AUDITORÍA DE LOGS";
+  $("#screen").innerHTML = `
+    <div class="card cyan">
+      <span class="tag">PILAR 3 · ANÁLISIS FORENSE</span>
+      <h2>Estación 2 · Auditoría de Logs</h2>
+      <p class="small">Los miles de eventos ocultan la cadena de fallas.
+      Filtrar e interconectar marcas de tiempo revela la verdad.</p>
+    </div>
+
+    <div class="card">
+      <h3>▸ Windows Event Viewer · Autopsia del sistema</h3>
+      <div class="timeline">
+        <div class="tl-item a">
+          <div class="tl-time">14:02:11</div>
+          <div class="tl-body"><b>ORIGEN: Application</b><br>
+            Software rendering crash</div>
+        </div>
+        <div class="tl-item b">
+          <div class="tl-time">14:02:15 &nbsp;·&nbsp; ▲ CORRELACIÓN TEMPORAL</div>
+          <div class="tl-body"><b>ORIGEN: System</b><br>
+            WHEA-Logger — Event ID 18<br>
+            <span class="small">Error de hardware físico corregido/detectado por el procesador</span></div>
+        </div>
+        <div class="tl-item c">
+          <div class="tl-time">14:02:16 &nbsp;·&nbsp; ▲ CORRELACIÓN TEMPORAL</div>
+          <div class="tl-body"><b>ORIGEN: System</b><br>
+            Kernel-Power — Event ID 41<br>
+            <span class="small">Apagado inesperado sin cierre limpio</span></div>
+        </div>
+      </div>
+      <p class="small">Asigná a cada evento su rol dentro de la cadena de falla.</p>
+    </div>
+
+    ${qCard("s2q1")}
+    ${qCard("s2q2")}
+    ${qCard("s2q3")}
+    ${qCard("s2q4")}
+    ${qCard("s2q5")}
+    ${qCard("s2q6")}
+
+    ${navFoot("s2","IR A ESTACIÓN 3 →","s3")}
+  `;
+  updateProgress("s2");
+  updateHUD();
+}
+
+/* --- ESTACIÓN 3 ------------------------------------------------ */
+function goS3(){
+  $("#hudTitle").textContent = "ESTACIÓN 3 · LÓGICA";
+  $("#screen").innerHTML = `
+    <div class="card amber">
+      <span class="tag">PILAR 1 · LÓGICA DE RESOLUCIÓN</span>
+      <h2>Estación 3 · Árboles e Ishikawa</h2>
+      <p class="small">No adivines; deducí. El diagnóstico comienza en la mente,
+      reduciendo el espacio de búsqueda para evitar la sustitución aleatoria de componentes.</p>
+    </div>
+
+    <div class="card">
+      <h3>▸ Escenario</h3>
+      <p>Un PC de diseño 3D <b style="color:#ff8b96">se apaga súbitamente al renderizar</b>.
+      No hay BSOD. El usuario solicita formatear el disco creyendo que es un virus.</p>
+      <hr class="hr">
+      <h3>▸ Datos forenses extraídos</h3>
+      <p class="small">
+        › Event Viewer: <b style="color:var(--cyan)">ID 41 (Kernel-Power)</b> registrado.<br>
+        › Telemetría bajo carga: <b style="color:#ff8b96">VRM a 105 °C</b>,
+        CPU con <b style="color:#ff8b96">throttling dinámico activo</b>.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>▸ Espina de pescado (Ishikawa)</h3>
+      <div class="fishbone">
+        <div class="bone"><span class="btag">MEDIO AMBIENTE</span>
+          <span class="btxt">Humedad / Polvo en ranura PCIe / Flujo de aire</span></div>
+        <div class="bone"><span class="btag">MÉTODO</span>
+          <span class="btxt">Instalación sin presionar seguro PCIe</span></div>
+        <div class="bone"><span class="btag">MANO DE OBRA</span>
+          <span class="btxt">Montaje con descarga electrostática (ESD)</span></div>
+        <div class="bone"><span class="btag">MATERIAL</span>
+          <span class="btxt">GPU defectuosa / Cable HDMI roto</span></div>
+      </div>
+      <div class="spine">→ FALLO: PC NO DA VIDEO / SE APAGA AL RENDERIZAR</div>
+    </div>
+
+    ${qCard("s3q1")}
+    ${qCard("s3q2")}
+    ${qCard("s3q3")}
+    ${qCard("s3q4")}
+
+    ${navFoot("s3","FINALIZAR Y VER RESULTADOS →","results")}
+  `;
+  updateProgress("s3");
+  updateHUD();
+}
+
+/* ================================================================
+   5. LÓGICA DE RESPUESTAS
+   ================================================================ */
+
+/* Finaliza una pregunta correcta y calcula el puntaje con penalizaciones */
+function finalizeQuestion(qid, chosenText, okButton, extraMsg){
+  const q  = QuestionBank[qid];
+  const st = qState(qid);
+  if(st.done) return;
+
+  st.done   = true;
+  st.chosen = chosenText;
+
+  // Multiplicador por intentos fallidos previos
+  const mult = st.attempts === 0 ? 1 : (st.attempts === 1 ? 0.6 : 0.3);
+  // Penalización por pista
+  const hintMult = st.hint ? 0.8 : 1;
+  st.earned = Math.round(q.pts * mult * hintMult * 10) / 10;
+
+  // Feedback visual
+  const card = $("#card-" + qid);
+  if(card){
+    $$(".opt", card).forEach(b => { b.disabled = true; });
+    if(okButton) okButton.classList.add("ok");
+  }
+
+  const fb = $("#fb-" + qid);
+  if(fb){
+    fb.className = "qfb show ok";
+    let extra = "";
+    if(st.attempts > 0) extra += ` <i>(penalización: ${st.attempts} intento/s fallido/s)</i>`;
+    if(st.hint)         extra += ` <i>(pista aplicada −20 %)</i>`;
+    fb.innerHTML = `<b>✔ CORRECTO</b> — +${fmt1(st.earned)} pts${extra}<br>${extraMsg || ""}`;
+  }
+
+  State.decisions.push({
+    t: nowStamp(),
+    tag: q.tag,
+    text: "✔ " + chosenText
+  });
+
+  updateProgress(qid.slice(0,2));
+  updateHUD();
+}
+
+/* Respuesta incorrecta -------------------------------------------------- */
+function registerWrong(qid, idx, btn){
+  const q  = QuestionBank[qid];
+  const st = qState(qid);
+  const opt = q.options[idx];
+
+  st.attempts++;
+  State.errors++;
+
+  btn.classList.add("bad");
+  btn.disabled = true;
+
+  const fb = $("#fb-" + qid);
+  if(fb){
+    fb.className = "qfb show bad";
+    fb.innerHTML = `<b>✘ INCORRECTO</b> — ${opt.fb || "Revisá el marco teórico."}<br>
+      <i>Penalización registrada. La metodología exige deducir, no probar al azar.</i>`;
+  }
+
+  State.decisions.push({
+    t: nowStamp(),
+    tag: q.tag,
+    text: "✘ " + opt.t
+  });
+}
+
+/* Pista ----------------------------------------------------------------- */
+function handleHint(qid, btn){
+  const q  = QuestionBank[qid];
+  const st = qState(qid);
+  if(st.hint || st.done) return;
+
+  st.hint = true;
+  State.hints++;
+  btn.disabled = true;
+  btn.textContent = "▸ PISTA APLICADA (−20 %)";
+
+  const fb = $("#fb-" + qid);
+  if(fb){
+    fb.className = "qfb show hint";
+    fb.innerHTML = "<b>◈ PISTA:</b> " + q.hint;
+  }
+}
+
+/* Slider ---------------------------------------------------------------- */
+function attachSlider(qid){
+  const inp = $("#sl-" + qid);
+  const out = $("#slv-" + qid);
+  if(!inp) return;
+  inp.addEventListener("input", () => {
+    out.textContent = inp.value;
+    // Feedback cromático en vivo
+    out.style.color = (Number(inp.value) === 110) ? "#00ff9c" : "#00ff9c";
+  });
+}
+
+/* Progreso de estación -------------------------------------------------- */
+function updateProgress(prefix){
+  const ids  = stationIds(prefix);
+  const done = ids.filter(id => qState(id).done).length;
+  const el   = $("#prog-" + prefix);
+  if(el) el.textContent = done + " / " + ids.length + " respondidas";
+  const btn = $("#next-" + prefix);
+  if(btn) btn.disabled = (done < ids.length);
+}
+
+/* ================================================================
+   6. DELEGACIÓN DE EVENTOS (táctil)
+   ================================================================ */
+document.addEventListener("click", function(ev){
+
+  const el = ev.target.closest("[data-act]");
+  if(!el) return;
+  const act = el.getAttribute("data-act");
+
+  /* Navegación ---------------------------------------------------- */
+  if(act === "nav"){
+    if(el.disabled) return;
+    const dest = el.getAttribute("data-nav");
+    if(dest === "s1") goS1();
+    else if(dest === "s2") goS2();
+    else if(dest === "s3") goS3();
+    else if(dest === "results") goResults();
+    window.scrollTo({top:0, behavior:"instant" in window ? "instant" : "auto"});
+    return;
+  }
+
+  if(act === "go"){
+    const dest = el.getAttribute("data-nav");
+    if(dest === "s1") goS1();
+    window.scrollTo(0,0);
+    return;
+  }
+
+  if(act === "restart"){
+    location.reload();
+    return;
+  }
+
+  /* Pista ---------------------------------------------------------- */
+  if(act === "hint"){
+    handleHint(el.getAttribute("data-qid"), el);
+    return;
+  }
+
+  /* Respuesta de opción múltiple ----------------------------------- */
+  if(act === "answer"){
+    const qid = el.getAttribute("data-qid");
+    const idx = parseInt(el.getAttribute("data-idx"), 10);
+    const q   = QuestionBank[qid];
+    const st  = qState(qid);
+    if(st.done || el.disabled) return;
+
+    if(q.options[idx].ok){
+      finalizeQuestion(qid, q.options[idx].t, el, q.options[idx].fb);
+    } else {
+      registerWrong(qid, idx, el);
+      updateHUD();
+    }
+    return;
+  }
+
+  /* Validación del slider ------------------------------------------ */
+  if(act === "slider-check"){
+    const qid = el.getAttribute("data-qid");
+    const st  = qState(qid);
+    if(st.done) return;
+    const inp = $("#sl-" + qid);
+    const val = Number(inp.value);
+
+    if(val === 110){
+      finalizeQuestion(qid, "Umbral calibrado en 110 °C (μ + 3σ)", el,
+        "Correcto: 3σ = μ + 3·σ = 65 + 45 = 110 °C. El apagado de emergencia queda calibrado en el límite exacto.");
+    } else {
+      st.attempts++;
+      State.errors++;
+      const fb = $("#fb-" + qid);
+      fb.className = "qfb show bad";
+      fb.innerHTML = `<b>✘ UMBRAL INCORRECTO</b> — Fijaste ${val} °C.<br>
+        <i>Calculá otra vez: 3σ = μ + 3·σ = 65 + 3×15.</i>`;
+      State.decisions.push({t:nowStamp(), tag:q.tag, text:"✘ Umbral fijado en " + val + " °C"});
+      updateHUD();
+    }
+    return;
+  }
+
+  /* Generar informe ------------------------------------------------ */
+  if(act === "report"){
+    generateReport();
+    return;
+  }
+});
+
+/* ================================================================
+   7. PANTALLA DE RESULTADOS
+   ================================================================ */
+function goResults(){
+  $("#hudTitle").textContent = "INFORME FINAL";
+  const total = totalScore();
+  const max   = totalMax();
+  const nota  = (total / max) * 10;
+
+  // Rango de competencia
+  let rank = "REQUIERE REPASO METODOLÓGICO";
+  let rankClass = "bad";
+  if(nota >= 9)      { rank = "OPERADOR FORENSE NIVEL III · EXCELENTE"; rankClass = ""; }
+  else if(nota >= 7.5){ rank = "TÉCNICO AVANZADO · SÓLIDO"; rankClass = ""; }
+  else if(nota >= 6)  { rank = "EN FORMACIÓN · APROBADO"; rankClass = "warn"; }
+
+  // Índice de ensayo-error
+  const totalQ = Object.keys(QuestionBank).length;
+  const indice = totalQ > 0 ? (State.errors / totalQ) : 0;
+  const durMin = Math.round((Date.now() - State.start) / 60000);
+
+  // Filas de puntaje por estación
+  const stRows = [["s1","ESTACIÓN 1 · TELEMETRÍA"],["s2","ESTACIÓN 2 · LOGS"],["s3","ESTACIÓN 3 · LÓGICA"]]
+    .map(([p,l]) => {
+      const sc = stationScore(p), mx = stationMax(p);
+      const pct = mx > 0 ? (sc / mx) * 100 : 0;
+      return `<div class="strow">
+        <span class="lbl">${l.split("·")[0].trim()}</span>
+        <span class="bar"><i style="width:${pct.toFixed(0)}%"></i></span>
+        <span class="val">${fmt1(sc)}/${mx}</span>
+      </div>`;
+    }).join("");
+
+  $("#screen").innerHTML = `
+    <div class="card">
+      <span class="tag">CIERRE · MANIFIESTO DEL TÉCNICO</span>
+      <h2>Resultados del diagnóstico</h2>
+      <div class="scorebig">
+        <div class="num">${fmt1(total)}</div>
+        <div class="den">/ ${max} PUNTOS · NOTA ${nota.toFixed(1)}/10</div>
+        <div class="rank ${rankClass}">${rank}</div>
+      </div>
+    </div>
+
+    <div class="card cyan">
+      <h3>▸ Desempeño por estación</h3>
+      ${stRows}
+      <hr class="hr">
+      <div class="metrics">
+        <div class="metric"><div class="mv">${State.errors}</div><div class="ml">INTENTOS FALLIDOS</div></div>
+        <div class="metric"><div class="mv">${State.hints}</div><div class="ml">PISTAS USADAS</div></div>
+        <div class="metric"><div class="mv">${indice.toFixed(2)}</div><div class="ml">ÍNDICE ENSAYO-ERROR</div></div>
+        <div class="metric"><div class="mv">${durMin}′</div><div class="ml">TIEMPO TOTAL</div></div>
+      </div>
+      <p class="note">
+        El <b>índice de ensayo-error</b> mide cuántos intentos fallidos hiciste por pregunta.
+        Un valor cercano a 0 indica diagnóstico deductivo. Un valor alto revela sustitución
+        aleatoria de hipótesis: exactamente lo que el marco metodológico penaliza.
+      </p>
+    </div>
+
+    <div class="card amber">
+      <h3>▸ Bitácora de decisiones</h3>
+      <div style="max-height:210px;overflow-y:auto;font-size:11.5px;line-height:1.7;color:#a9cec5">
+        ${State.decisions.length
+          ? State.decisions.map(d => `<div><b style="color:var(--cyan)">[${d.t}]</b> ${esc(d.tag)} — ${esc(d.text)}</div>`).join("")
+          : "<div>Sin registros.</div>"}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>▚ Datos del informe</h2>
+      <label for="inpNombre">NOMBRE Y APELLIDO <span class="req">*</span></label>
+      <input type="text" id="inpNombre" placeholder="Ej: Ana Gómez" autocomplete="name"
+             value="${esc(State.nombre)}">
+
+      <label for="inpCurso">CURSO Y DIVISIÓN <span class="req">*</span></label>
+      <input type="text" id="inpCurso" placeholder="Ej: 6° Año B" autocomplete="off"
+             value="${esc(State.curso)}">
+
+      <label for="inpSintesis">SÍNTESIS DEL DIAGNÓSTICO <span class="req">*</span></label>
+      <textarea id="inpSintesis" placeholder="Explicá con tus palabras: ¿cuál era la causa raíz, cómo la identificaste con los tres pilares y por qué formatear el disco era una decisión metodológicamente incorrecta?">${esc(State.sintesis)}</textarea>
+
+      <div style="height:14px"></div>
+      <button class="btn" data-act="report">⬇ GENERAR INFORME DESCARGABLE (.doc)</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" data-act="restart">↺ REINICIAR SIMULADOR</button>
+
+      <p class="note">
+        El archivo se descarga directamente en tu teléfono. Luego subilo a Google Classroom
+        como evidencia y usalo para fundamentar el trabajo en tu carpeta física.
+      </p>
+    </div>
+  `;
+  updateHUD();
+  window.scrollTo(0,0);
+}
+
+/* ================================================================
+   8. GENERACIÓN DEL INFORME .DOC
+   ================================================================ */
+
+/* Construye el cuerpo HTML del documento Word --------------------- */
+function buildDocBody(){
+  const total = totalScore();
+  const max   = totalMax();
+  const nota  = (total / max) * 10;
+  const fecha = new Date().toLocaleString("es-AR");
+  const durMin = Math.round((Date.now() - State.start) / 60000);
+
+  let rank = "Requiere repaso metodológico";
+  if(nota >= 9)       rank = "Operador Forense Nivel III · Excelente";
+  else if(nota >= 7.5) rank = "Técnico Avanzado · Sólido";
+  else if(nota >= 6)   rank = "En formación · Aprobado";
+
+  const totalQ = Object.keys(QuestionBank).length;
+  const indice = totalQ > 0 ? (State.errors / totalQ).toFixed(2) : "0.00";
+
+  /* Tabla resumen por estación */
+  const resumen = [["s1","Estación 1 · Telemetría (Pilar 2)"],
+                   ["s2","Estación 2 · Auditoría de Logs (Pilar 3)"],
+                   ["s3","Estación 3 · Lógica e Ishikawa (Pilar 1)"]]
+    .map(([p,l]) => `<tr>
+        <td style="border:1px solid #999;padding:6px">${l}</td>
+        <td style="border:1px solid #999;padding:6px;text-align:center">${fmt1(stationScore(p))}</td>
+        <td style="border:1px solid #999;padding:6px;text-align:center">${stationMax(p)}</td>
+      </tr>`).join("");
+
+  /* Tabla detalle pregunta por pregunta */
+  const detalle = Object.keys(QuestionBank).map(id => {
+    const q  = QuestionBank[id];
+    const st = qState(id);
+    const estado = st.done ? "Correcta" : "Sin resolver";
+    const prompt = q.prompt.length > 95 ? q.prompt.slice(0,95) + "…" : q.prompt;
+    return `<tr>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt">${esc(q.tag)}</td>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt">${esc(prompt)}</td>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt">${esc(st.chosen)}</td>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt;text-align:center">${estado}</td>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt;text-align:center">${fmt1(st.earned)} / ${q.pts}</td>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt;text-align:center">${st.attempts}</td>
+      <td style="border:1px solid #999;padding:5px;font-size:9pt;text-align:center">${st.hint ? "Sí" : "No"}</td>
+    </tr>`;
+  }).join("");
+
+  /* Bitácora */
+  const bitacora = State.decisions.length
+    ? State.decisions.map(d =>
+        `<li style="font-size:9.5pt;margin-bottom:3px">
+           <b>[${esc(d.t)}]</b> ${esc(d.tag)} — ${esc(d.text)}
+         </li>`).join("")
+    : "<li>Sin registros.</li>";
+
+  const sintesis = esc(State.sintesis).replace(/\n/g, "<br>");
+
+  return `
+  <div style="font-family:Calibri,Arial,sans-serif;color:#111;font-size:11pt">
+
+    <h1 style="font-size:17pt;color:#0a5c46;margin-bottom:2px">
+      ESCUADRÓN FORENSE — INFORME DE DIAGNÓSTICO
+    </h1>
+    <p style="font-size:10pt;color:#555;margin:0 0 14px 0">
+      Hardware IV · 6° Año · Ciclo de Diagnóstico Avanzado
+    </p>
+
+    <table style="border-collapse:collapse;width:100%;margin-bottom:16px">
+      <tr><td style="border:1px solid #999;padding:6px;width:32%"><b>Alumno/a</b></td>
+          <td style="border:1px solid #999;padding:6px">${esc(State.nombre)}</td></tr>
+      <tr><td style="border:1px solid #999;padding:6px"><b>Curso y División</b></td>
+          <td style="border:1px solid #999;padding:6px">${esc(State.curso)}</td></tr>
+      <tr><td style="border:1px solid #999;padding:6px"><b>Fecha y hora</b></td>
+          <td style="border:1px solid #999;padding:6px">${esc(fecha)}</td></tr>
+      <tr><td style="border:1px solid #999;padding:6px"><b>Duración de la simulación</b></td>
+          <td style="border:1px solid #999;padding:6px">${durMin} minutos</td></tr>
+    </table>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      1. Resultado global
+    </h2>
+    <p style="font-size:12pt;margin:8px 0">
+      <b>Puntaje obtenido:</b> ${fmt1(total)} / ${max} puntos &nbsp;·&nbsp;
+      <b>Nota:</b> ${nota.toFixed(1)} / 10
+    </p>
+    <p style="font-size:11pt;margin:0 0 14px 0"><b>Nivel de competencia:</b> ${rank}</p>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      2. Desempeño por estación
+    </h2>
+    <table style="border-collapse:collapse;width:100%;margin:8px 0 16px 0">
+      <tr style="background:#e6f4ef">
+        <th style="border:1px solid #999;padding:6px;text-align:left">Estación</th>
+        <th style="border:1px solid #999;padding:6px">Obtenido</th>
+        <th style="border:1px solid #999;padding:6px">Máximo</th>
+      </tr>
+      ${resumen}
+    </table>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      3. Métricas metodológicas
+    </h2>
+    <table style="border-collapse:collapse;width:100%;margin:8px 0 16px 0">
+      <tr><td style="border:1px solid #999;padding:6px;width:55%">Intentos fallidos totales</td>
+          <td style="border:1px solid #999;padding:6px;text-align:center">${State.errors}</td></tr>
+      <tr><td style="border:1px solid #999;padding:6px">Pistas solicitadas (−20 % c/u)</td>
+          <td style="border:1px solid #999;padding:6px;text-align:center">${State.hints}</td></tr>
+      <tr><td style="border:1px solid #999;padding:6px">Índice de ensayo-error (fallos / pregunta)</td>
+          <td style="border:1px solid #999;padding:6px;text-align:center">${indice}</td></tr>
+    </table>
+    <p style="font-size:9.5pt;color:#555;margin:0 0 16px 0">
+      <i>Interpretación: un índice cercano a 0 evidencia diagnóstico deductivo.
+      Un índice elevado revela sustitución aleatoria de hipótesis, práctica penalizada
+      por el marco metodológico ("Nunca sustituir al azar").</i>
+    </p>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      4. Detalle pregunta por pregunta
+    </h2>
+    <table style="border-collapse:collapse;width:100%;margin:8px 0 16px 0">
+      <tr style="background:#e6f4ef">
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Etiqueta</th>
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Consigna</th>
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Respuesta</th>
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Estado</th>
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Puntaje</th>
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Intentos</th>
+        <th style="border:1px solid #999;padding:5px;font-size:9pt">Pista</th>
+      </tr>
+      ${detalle}
+    </table>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      5. Bitácora cronológica de decisiones
+    </h2>
+    <ul style="margin:8px 0 16px 18px;padding:0">
+      ${bitacora}
+    </ul>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      6. Síntesis del alumno
+    </h2>
+    <p style="font-size:11pt;line-height:1.6;margin:8px 0 20px 0;text-align:justify">
+      ${sintesis}
+    </p>
+
+    <h2 style="font-size:13pt;color:#0a5c46;border-bottom:2px solid #0a5c46;padding-bottom:3px">
+      7. Marco teórico de referencia
+    </h2>
+    <p style="font-size:10pt;line-height:1.6;margin:8px 0 20px 0">
+      <b>Pilar 1 — Lógica:</b> inferencia analógica, espina de pescado (Ishikawa) y árboles de
+      decisión binarios.<br>
+      <b>Pilar 2 — Análisis estadístico:</b> telemetría de constantes vitales bajo estrés y
+      umbrales de normalidad (Regla 3σ).<br>
+      <b>Pilar 3 — Auditoría de logs:</b> análisis forense de eventos de SO y registros UEFI/BIOS.<br>
+      <i>Herramientas: HWiNFO64, lm-sensors, Event Viewer, WinDbg, journalctl, dmesg, smartctl.</i>
+    </p>
+
+    <p style="font-size:10pt;color:#555;border-top:1px solid #999;padding-top:10px;margin-top:24px">
+      <i>"La competencia diagnóstica no es saber inmediatamente la respuesta; es dominar el proceso
+      de reducir sistemáticamente las variables hasta que la verdad sea evidente e innegable."</i>
+      — Manifiesto del Técnico Profesional
+    </p>
+
+  </div>`;
+}
+
+/* Empaqueta y descarga el archivo .doc ---------------------------- */
+function generateReport(){
+  const nombre = $("#inpNombre").value.trim();
+  const curso  = $("#inpCurso").value.trim();
+  const sin    = $("#inpSintesis").value.trim();
+
+  // Validaciones pedagógicas
+  if(nombre.length < 3){
+    alert("⚠ Campo obligatorio: ingresá tu Nombre y Apellido completo.");
+    $("#inpNombre").focus();
+    return;
+  }
+  if(curso.length < 2){
+    alert("⚠ Campo obligatorio: ingresá tu Curso y División.");
+    $("#inpCurso").focus();
+    return;
+  }
+  if(sin.length < 15){
+    alert("⚠ Escribí una síntesis del diagnóstico (mínimo 15 caracteres) para fundamentar tu informe.");
+    $("#inpSintesis").focus();
+    return;
+  }
+
+  State.nombre  = nombre;
+  State.curso   = curso;
+  State.sintesis = sin;
+
+  // Encabezado compatible con Microsoft Word / Android
+  const docHTML =
+    "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
+    "xmlns:w='urn:schemas-microsoft-com:office:word' " +
+    "xmlns='http://www.w3.org/TR/REC-html40'>" +
+    "<head><meta charset='utf-8'>" +
+    "<title>Informe Escuadron Forense</title>" +
+    "<!--[if gte mso 9]><xml><w:WordDocument>" +
+    "<w:View>Print</w:View><w:Zoom>100</w:Zoom>" +
+    "</w:WordDocument></xml><![endif]-->" +
+    "<style>@page{size:A4;margin:2cm}" +
+    "body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#111;line-height:1.45}" +
+    "h1,h2{font-family:Calibri,Arial,sans-serif}" +
+    "table{border-collapse:collapse}</style>" +
+    "</head><body>" +
+    buildDocBody() +
+    "</body></html>";
+
+  // Nombre de archivo saneado
+  const safe = nombre.replace(/[^\w\sáéíóúÁÉÍÓÚñÑ]/g, "")
+                    .replace(/\s+/g, "_")
+                    .slice(0, 40);
+  const safeCurso = curso.replace(/[^\w\s°]/g, "").replace(/\s+/g, "_").slice(0, 15);
+  const filename = "Informe_Forense_" + safe + "_" + safeCurso + ".doc";
+
+  try{
+    // El BOM (\ufeff) garantiza la correcta detección de UTF-8 en Word
+    const blob = new Blob(["\ufeff", docHTML], {type: "application/msword;charset=utf-8"});
+    const url  = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(function(){
+      if(a.parentNode) a.parentNode.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 2500);
+
+    // Confirmación visual
+    setTimeout(function(){
+      alert("✔ Informe generado: " + filename +
+            "\n\nRevisá la carpeta de Descargas de tu teléfono." +
+            "\nSubilo a Google Classroom como evidencia.");
+    }, 400);
+
+  }catch(err){
+    alert("No se pudo generar el archivo automáticamente. " +
+          "Verificá los permisos de descarga de tu navegador.\n\nDetalle: " + err.message);
+  }
+}
+
+/* ================================================================
+   9. ARRANQUE
+   ================================================================ */
+(function init(){
+  // Inicializar el estado de todas las preguntas
+  Object.keys(QuestionBank).forEach(qState);
+  updateHUD();
+  goIntro();
+})();
+
+</script>
+</body>
+</html>
